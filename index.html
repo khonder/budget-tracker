@@ -10,6 +10,9 @@
 <meta name="apple-mobile-web-app-title" content="Budget">
 <meta name="theme-color" content="#818cf8">
 <title>Daily Budget Tracker</title>
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com; img-src 'self' data:;">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -177,7 +180,7 @@
 
     <div class="login-field">
       <label>Username</label>
-      <input type="text" id="login-user" placeholder="Enter username" autocomplete="username" autocapitalize="none">
+      <input type="text" id="login-user" placeholder="Enter username" autocomplete="username" autocapitalize="none" maxlength="50">
     </div>
 
     <div class="login-field">
@@ -254,11 +257,11 @@
         </div>
         <div class="form-group">
           <label>Description</label>
-          <input type="text" id="desc" placeholder="What was this for?">
+          <input type="text" id="desc" placeholder="What was this for?" maxlength="200">
         </div>
         <div class="form-group">
           <label>Notes (optional)</label>
-          <textarea id="notes" placeholder="Any extra details..."></textarea>
+          <textarea id="notes" placeholder="Any extra details..." maxlength="500"></textarea>
         </div>
         <button class="submit-btn" id="submit-btn" onclick="addEntry()">+ Add Entry</button>
       </div>
@@ -324,6 +327,7 @@ sheetYear = now.getFullYear(); sheetMonth = now.getMonth();
 // ── PIN UI ────────────────────────────────────────────────
 let pinVal = '';
 function pinKey(d) {
+  if (!/^[0-9]$/.test(d)) return; // only digits
   if (pinVal.length >= 4) return;
   pinVal += d;
   updatePinDots();
@@ -342,7 +346,7 @@ function updatePinDots() {
 
 // ── AUTH ──────────────────────────────────────────────────
 async function doLogin() {
-  const username = document.getElementById('login-user').value.trim();
+  const username = esc(document.getElementById('login-user').value.trim());
   const errEl = document.getElementById('login-error');
   const btn = document.getElementById('login-btn');
   if (!username) { errEl.textContent = 'Enter your username'; return; }
@@ -426,6 +430,17 @@ function logout() {
   if (saved) { authToken = saved; showApp(); }
 })();
 
+
+// ── SECURITY: HTML escape to prevent XSS ─────────────────────────────────
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
 // ── HELPERS ───────────────────────────────────────────────
 function setSyncStatus(state, label) {
   document.getElementById('sync-dot').className = 'sync-dot ' + state;
@@ -447,6 +462,7 @@ const catEmoji = {
   'Food & Dining':'🍽️','Transport':'🚗','Shopping':'🛍️','Utilities':'💡',
   'Healthcare':'🏥','Entertainment':'🎬','Rent':'🏠','Education':'📚','Other Expense':'📌'
 };
+Object.freeze(catEmoji);
 
 // ── DATA ──────────────────────────────────────────────────
 async function loadEntries(silent=false) {
@@ -480,7 +496,7 @@ function startPolling() {
 
 
 async function addEntry() {
-  const amount=parseFloat(document.getElementById('amount').value);
+  const amount=Math.abs(parseFloat(document.getElementById('amount').value)||0);
   const date=document.getElementById('date').value;
   const category=document.getElementById('category').value;
   const desc=document.getElementById('desc').value.trim();
@@ -492,7 +508,7 @@ async function addEntry() {
   const btn=document.getElementById('submit-btn');
   btn.disabled=true; btn.textContent='Saving…';
   setSyncStatus('syncing','saving');
-  const entry={id:Date.now(),type:currentType,amount,date,category,desc,notes};
+  const entry={id:Date.now(),type:currentType,amount,date,category:category.substring(0,100),desc:desc.substring(0,200),notes:notes.substring(0,500)};
   try {
     await fetch(API,{method:'POST',body:JSON.stringify({action:'add',token:authToken,...entry})});
     entries.unshift(entry);
@@ -553,14 +569,14 @@ function renderEntries() {
   if(!data.length){list.innerHTML=`<div class="empty"><div class="empty-icon">${entryFilter==='earn'?'💰':entryFilter==='expense'?'🧾':'📋'}</div>No entries yet.</div>`;return;}
   list.innerHTML=data.map(e=>`
     <div class="entry">
-      <div class="entry-icon ${e.type}">${catEmoji[e.category]||(e.type==='earn'?'💰':'💸')}</div>
+      <div class="entry-icon ${esc(e.type)}">${catEmoji[e.category]||(e.type==='earn'?'💰':'💸')}</div>
       <div class="entry-info">
-        <div class="entry-desc">${e.desc}</div>
-        <div class="entry-meta">${e.category} · ${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
+        <div class="entry-desc">${esc(e.desc)}</div>
+        <div class="entry-meta">${esc(e.category)} · ${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
       </div>
       <div class="entry-right">
-        <div class="entry-amount ${e.type}">${e.type==='earn'?'+':'-'}${fmt(e.amount)}</div>
-        <button class="del-btn" onclick="deleteEntry('${e.id}')">✕</button>
+        <div class="entry-amount ${esc(e.type)}">${e.type==='earn'?'+':'-'}${fmt(e.amount)}</div>
+        <button class="del-btn" onclick="deleteEntry('${esc(String(e.id))}')">✕</button>
       </div>
     </div>`).join('');
 }
@@ -576,11 +592,11 @@ function renderSheet() {
   document.getElementById('sheet-summary-cards').innerHTML=`<div class="sheet-summary-cards"><div class="sum-card"><div class="sum-label">Earned</div><div class="sum-val" style="color:var(--earn)">${fmt(earn)}</div></div><div class="sum-card"><div class="sum-label">Spent</div><div class="sum-val" style="color:var(--expense)">${fmt(exp)}</div></div><div class="sum-card"><div class="sum-label">Balance</div><div class="sum-val" style="color:${bal>=0?'var(--earn)':'var(--expense)'}">${(bal<0?'-':'')+fmt(bal)}</div></div></div>`;
   const content=document.getElementById('sheet-content');
   if(!filtered.length){content.innerHTML='<div class="empty"><div class="empty-icon">📊</div>No transactions this month.</div>';document.getElementById('cat-card').style.display='none';return;}
-  content.innerHTML=filtered.map(e=>`<div class="sheet-entry"><div class="sheet-date">${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div><div class="sheet-info"><div class="sheet-desc">${catEmoji[e.category]||''} ${e.desc}</div><div class="sheet-cat">${e.category}</div></div><div class="sheet-amt ${e.type}">${e.type==='earn'?'+':'-'}${fmt(e.amount)}</div></div>`).join('');
+  content.innerHTML=filtered.map(e=>`<div class="sheet-entry"><div class="sheet-date">${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div><div class="sheet-info"><div class="sheet-desc">${catEmoji[e.category]||''} ${esc(e.desc)}</div><div class="sheet-cat">${esc(e.category)}</div></div><div class="sheet-amt ${esc(e.type)}">${e.type==='earn'?'+':'-'}${fmt(e.amount)}</div></div>`).join('');
   document.getElementById('cat-card').style.display='block';
   const cats={};filtered.filter(e=>e.type==='expense').forEach(e=>{cats[e.category]=(cats[e.category]||0)+e.amount;});
   const catArr=Object.entries(cats).sort((a,b)=>b[1]-a[1]);const maxCat=catArr[0]?.[1]||1;
-  document.getElementById('cat-breakdown').innerHTML=catArr.length?catArr.map(([cat,amt])=>`<div class="cat-row"><div class="cat-name">${catEmoji[cat]||''} ${cat}</div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${(amt/maxCat)*100}%;background:var(--expense)"></div></div><div class="cat-amt-label">${fmt(amt)}</div></div>`).join(''):'<div class="empty" style="padding:12px">No expenses this month.</div>';
+  document.getElementById('cat-breakdown').innerHTML=catArr.length?catArr.map(([cat,amt])=>`<div class="cat-row"><div class="cat-name">${catEmoji[cat]||''} ${esc(cat)}</div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${(amt/maxCat)*100}%;background:var(--expense)"></div></div><div class="cat-amt-label">${fmt(amt)}</div></div>`).join(''):'<div class="empty" style="padding:12px">No expenses this month.</div>';
 }
 
 function shareSheet(){
