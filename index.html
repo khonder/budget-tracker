@@ -381,10 +381,13 @@ const EXP_CATS = [
 
 function setType(t) {
   currentType = t;
-  document.getElementById('btn-earn').classList.toggle('active',t==='earn');
-  document.getElementById('btn-expense').classList.toggle('active',t==='expense');
+  const btnEarn = document.getElementById('btn-earn');
+  const btnExp = document.getElementById('btn-expense');
+  if (btnEarn) btnEarn.classList.toggle('active', t==='earn');
+  if (btnExp)  btnExp.classList.toggle('active', t==='expense');
   const cats = t==='earn' ? EARN_CATS : EXP_CATS;
   const sel = document.getElementById('category');
+  if (!sel) return;
   sel.innerHTML = '<option value="">-- Select category --</option>' +
     cats.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
 }
@@ -393,7 +396,7 @@ function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-screen').classList.remove('hidden');
   document.getElementById('date').value = now.toISOString().split('T')[0];
-  setType('earn'); // init category dropdown
+  setTimeout(() => setType('earn'), 0); // init after DOM is visible
   renderSheet();
   loadEntries();
   startPolling();
@@ -586,6 +589,7 @@ function switchTab(tab,btn){
   btn.classList.add('active');
   document.getElementById('content-area').scrollTop=0;
   if(tab==='entries'||tab==='sheet') loadEntries(true);
+  if(tab==='add') setType(currentType);
 }
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
