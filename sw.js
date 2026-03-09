@@ -1,46 +1,611 @@
-const CACHE = 'budget-tracker-v3';
-const STATIC = [
-  './manifest.json',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png',
-  'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<meta name="theme-color" content="#818cf8">
+<title>Daily Budget Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192x192.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f13; --surface: #16181f; --surface2: #1d2029; --border: #2a2d38;
+    --earn: #22c55e; --earn-dim: rgba(34,197,94,0.12);
+    --expense: #f97316; --expense-dim: rgba(249,115,22,0.12);
+    --accent: #818cf8; --accent-dim: rgba(129,140,248,0.12);
+    --text: #e8eaf0; --muted: #6b7280; --radius: 14px;
+    --safe-top: env(safe-area-inset-top,0px); --safe-bottom: env(safe-area-inset-bottom,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;display:flex;flex-direction:column;height:100dvh;overscroll-behavior:none}
+  body::before{content:'';position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(129,140,248,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(129,140,248,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+
+  /* ── LOGIN ── */
+  #login-screen{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+  #login-screen.hidden{display:none}
+  .login-box{width:100%;max-width:380px}
+  .login-logo{font-family:'DM Serif Display',serif;font-size:2rem;background:linear-gradient(135deg,#e8eaf0 30%,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px}
+  .login-sub{font-size:0.72rem;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:36px}
+  .login-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+  .login-field label{font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)}
+  .login-field input{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;color:var(--text);font-family:'DM Mono',monospace;font-size:1rem;outline:none;transition:border-color 0.2s;-webkit-appearance:none}
+  .login-field input:focus{border-color:var(--accent)}
+  .login-btn{width:100%;padding:15px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-family:'DM Mono',monospace;font-size:0.85rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;margin-top:8px;-webkit-appearance:none;transition:opacity 0.2s}
+  .login-btn:active{opacity:0.85}
+  .login-btn:disabled{opacity:0.5;cursor:not-allowed}
+  .login-error{color:var(--expense);font-size:0.75rem;margin-top:12px;text-align:center;min-height:18px}
+  .login-dots{display:flex;gap:6px;justify-content:center;margin-top:24px}
+  .login-dot-item{width:8px;height:8px;border-radius:50%;background:var(--border);transition:background 0.2s}
+  .login-dot-item.filled{background:var(--accent)}
+  /* PIN pad */
+  .pin-display{display:flex;gap:12px;justify-content:center;margin:20px 0}
+  .pin-circle{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);transition:all 0.15s}
+  .pin-circle.filled{background:var(--accent);border-color:var(--accent)}
+  .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px}
+  .pin-key{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:18px;font-size:1.2rem;color:var(--text);font-family:'DM Serif Display',serif;cursor:pointer;transition:all 0.15s;text-align:center;-webkit-appearance:none}
+  .pin-key:active{background:var(--accent-dim);border-color:var(--accent);transform:scale(0.95)}
+  .pin-key.del{font-family:'DM Mono',monospace;font-size:1rem;color:var(--muted)}
+
+  /* ── APP ── */
+  #app-screen{display:flex;flex-direction:column;height:100%;position:relative;z-index:1}
+  #app-screen.hidden{display:none}
+
+  .app-header{position:relative;z-index:10;padding:calc(var(--safe-top) + 14px) 20px 14px;background:rgba(14,15,19,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);flex-shrink:0}
+  .header-row{display:flex;align-items:center;justify-content:space-between}
+  .app-title{font-family:'DM Serif Display',serif;font-size:1.35rem;background:linear-gradient(135deg,#e8eaf0 30%,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .header-right{display:flex;align-items:center;gap:10px}
+  .sync-status{display:flex;align-items:center;gap:6px;font-size:0.65rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted)}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background 0.3s}
+  .sync-dot.syncing{background:var(--accent);animation:pulse 1s infinite}
+  .sync-dot.ok{background:var(--earn)}
+  .sync-dot.err{background:var(--expense)}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:'DM Mono',monospace;font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase;padding:4px 8px;cursor:pointer}
+  .logout-btn:active{border-color:var(--expense);color:var(--expense)}
+  .sync-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:'DM Mono',monospace;font-size:0.75rem;padding:4px 8px;cursor:pointer;transition:all 0.2s;line-height:1}
+  .sync-btn:active{border-color:var(--accent);color:var(--accent)}
+  .sync-btn.spinning{color:var(--accent);border-color:var(--accent);display:inline-block;animation:spin 0.8s linear infinite}
+  @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  .summary-strip{display:flex;gap:10px;padding:12px 16px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;background:var(--bg);position:relative;z-index:5}
+  .summary-strip::-webkit-scrollbar{display:none}
+  .stat-pill{display:flex;flex-direction:column;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px;flex-shrink:0;min-width:110px;position:relative;overflow:hidden}
+  .stat-pill::before{content:'';position:absolute;inset:0;opacity:0.07;border-radius:12px}
+  .stat-pill.earn::before{background:var(--earn)}.stat-pill.exp::before{background:var(--expense)}.stat-pill.bal::before{background:var(--accent)}
+  .stat-label{font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .stat-val{font-family:'DM Serif Display',serif;font-size:1.15rem}
+  .stat-pill.earn .stat-val{color:var(--earn)}.stat-pill.exp .stat-val{color:var(--expense)}.stat-pill.bal .stat-val{color:var(--accent)}
+
+  .content-area{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 8px;position:relative;z-index:1;-webkit-overflow-scrolling:touch}
+  .bottom-nav{display:flex;background:rgba(22,24,31,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:8px 0 calc(var(--safe-bottom) + 8px);flex-shrink:0;position:relative;z-index:10}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:none;cursor:pointer;padding:6px 0;color:var(--muted);transition:color 0.2s}
+  .nav-item.active{color:var(--accent)}
+  .nav-icon{font-size:1.3rem;line-height:1}
+  .nav-label{font-family:'DM Mono',monospace;font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase}
+
+  .panel{display:none;animation:fadeIn 0.2s ease}.panel.active{display:block}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+  .card-title{font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+
+  .type-toggle{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .type-btn{padding:14px 10px;border:1.5px solid var(--border);border-radius:10px;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:0.8rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.2s}
+  .type-btn.earn.active{border-color:var(--earn);background:var(--earn-dim);color:var(--earn)}
+  .type-btn.expense.active{border-color:var(--expense);background:var(--expense-dim);color:var(--expense)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .form-group:last-child{margin-bottom:0}
+  label{font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)}
+  input,select,textarea{background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.9rem;outline:none;transition:border-color 0.2s;width:100%;-webkit-appearance:none;appearance:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+  textarea{resize:none;height:70px}
+  .submit-btn{width:100%;padding:15px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-family:'DM Mono',monospace;font-size:0.85rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;margin-top:4px;-webkit-appearance:none}
+  .submit-btn:active{transform:scale(0.98);opacity:0.9}
+  .submit-btn.success{background:var(--earn)}
+  .submit-btn:disabled{opacity:0.5;cursor:not-allowed}
+
+  .entry{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+  .entry:last-child{border-bottom:none}
+  .entry-icon{width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+  .entry-icon.earn{background:var(--earn-dim)}.entry-icon.expense{background:var(--expense-dim)}
+  .entry-info{flex:1;min-width:0}
+  .entry-desc{font-size:0.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .entry-meta{font-size:0.65rem;color:var(--muted);margin-top:3px}
+  .entry-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+  .entry-amount{font-family:'DM Serif Display',serif;font-size:1.05rem}
+  .entry-amount.earn{color:var(--earn)}.entry-amount.expense{color:var(--expense)}
+  .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.75rem;padding:2px 6px;border-radius:4px}
+  .del-btn:active{color:#ef4444}
+
+  .filter-bar{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .filter-bar::-webkit-scrollbar{display:none}
+  .filter-chip{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.05em;cursor:pointer;white-space:nowrap;transition:all 0.2s}
+  .filter-chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+  .sheet-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .month-nav{display:flex;align-items:center;gap:12px}
+  .nav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center}
+  .nav-btn:active{border-color:var(--accent)}
+  .month-label{font-family:'DM Serif Display',serif;font-size:1rem;min-width:130px;text-align:center}
+  .share-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:8px;font-family:'DM Mono',monospace;font-size:0.7rem;cursor:pointer}
+  .sheet-summary-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+  .sum-card{background:var(--surface2);border-radius:10px;padding:12px 8px;text-align:center}
+  .sum-label{font-size:0.58rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .sum-val{font-family:'DM Serif Display',serif;font-size:1rem}
+  .sheet-entry{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+  .sheet-entry:last-child{border-bottom:none}
+  .sheet-date{font-size:0.68rem;color:var(--muted);min-width:36px}
+  .sheet-info{flex:1;min-width:0}
+  .sheet-desc{font-size:0.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sheet-cat{font-size:0.62rem;color:var(--muted);margin-top:2px}
+  .sheet-amt{font-family:'DM Serif Display',serif;font-size:0.95rem;flex-shrink:0}
+  .sheet-amt.earn{color:var(--earn)}.sheet-amt.expense{color:var(--expense)}
+
+  .cat-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .cat-name{font-size:0.72rem;min-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cat-bar-wrap{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .cat-bar{height:100%;border-radius:3px;transition:width 0.6s cubic-bezier(.4,0,.2,1)}
+  .cat-amt-label{font-size:0.7rem;color:var(--muted);min-width:64px;text-align:right}
+
+  .skeleton{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:8px;height:52px;margin-bottom:10px}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .empty{color:var(--muted);font-size:0.82rem;text-align:center;padding:36px 16px}
+  .empty-icon{font-size:2.5rem;margin-bottom:10px}
+
+  .toast{position:fixed;bottom:calc(var(--safe-bottom,0px) + 80px);left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-family:'DM Mono',monospace;font-size:0.78rem;z-index:9999;white-space:nowrap;pointer-events:none;animation:fadeIn .2s ease}
+  .toast.error{background:#1d2029;border:1px solid var(--expense);color:var(--expense)}
+  .toast.success{background:#1d2029;border:1px solid var(--earn);color:var(--earn)}
+  .toast.info{background:#1d2029;border:1px solid var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Budget Tracker</div>
+    <div class="login-sub">Sign in to continue</div>
+
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="login-user" placeholder="Enter username" autocomplete="username" autocapitalize="none">
+    </div>
+
+    <div class="login-field">
+      <label>PIN</label>
+      <div class="pin-display">
+        <div class="pin-circle" id="p0"></div>
+        <div class="pin-circle" id="p1"></div>
+        <div class="pin-circle" id="p2"></div>
+        <div class="pin-circle" id="p3"></div>
+      </div>
+      <div class="pin-pad">
+        <button class="pin-key" onclick="pinKey('1')">1</button>
+        <button class="pin-key" onclick="pinKey('2')">2</button>
+        <button class="pin-key" onclick="pinKey('3')">3</button>
+        <button class="pin-key" onclick="pinKey('4')">4</button>
+        <button class="pin-key" onclick="pinKey('5')">5</button>
+        <button class="pin-key" onclick="pinKey('6')">6</button>
+        <button class="pin-key" onclick="pinKey('7')">7</button>
+        <button class="pin-key" onclick="pinKey('8')">8</button>
+        <button class="pin-key" onclick="pinKey('9')">9</button>
+        <button class="pin-key" onclick="pinKey('0')" style="grid-column:2">0</button>
+        <button class="pin-key del" onclick="pinDel()">⌫</button>
+      </div>
+    </div>
+
+    <button class="login-btn" id="login-btn" onclick="doLogin()" disabled>Sign In</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app-screen" class="hidden">
+  <div class="app-header">
+    <div class="header-row">
+      <div class="app-title">Budget Tracker</div>
+      <div class="header-right">
+        <div class="sync-status">
+          <div class="sync-dot" id="sync-dot"></div>
+          <span id="sync-label">loading</span>
+        </div>
+        <button class="sync-btn" id="sync-btn" onclick="manualSync()" title="Sync now">⟳</button>
+        <button class="logout-btn" onclick="logout()">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-strip">
+    <div class="stat-pill earn"><div class="stat-label">Earnings</div><div class="stat-val" id="total-earn">₹0</div></div>
+    <div class="stat-pill exp"> <div class="stat-label">Expenses</div><div class="stat-val" id="total-exp">₹0</div></div>
+    <div class="stat-pill bal"> <div class="stat-label">Balance</div> <div class="stat-val" id="total-bal">₹0</div></div>
+  </div>
+
+  <div class="content-area" id="content-area">
+    <div id="add-panel" class="panel active">
+      <div class="card">
+        <div class="card-title">Transaction Type</div>
+        <div class="type-toggle">
+          <button class="type-btn earn active" id="btn-earn" onclick="setType('earn')">▲ Earning</button>
+          <button class="type-btn expense" id="btn-expense" onclick="setType('expense')">▼ Expense</button>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Amount (₹)</label>
+            <input type="number" id="amount" placeholder="0.00" min="0" step="0.01" inputmode="decimal">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Date</label>
+            <input type="date" id="date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="category"></select>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="desc" placeholder="What was this for?">
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <textarea id="notes" placeholder="Any extra details..."></textarea>
+        </div>
+        <button class="submit-btn" id="submit-btn" onclick="addEntry()">+ Add Entry</button>
+      </div>
+    </div>
+
+    <div id="entries-panel" class="panel">
+      <div class="filter-bar">
+        <button class="filter-chip active" onclick="setFilter('all',this)">All</button>
+        <button class="filter-chip" onclick="setFilter('earn',this)">Earnings</button>
+        <button class="filter-chip" onclick="setFilter('expense',this)">Expenses</button>
+      </div>
+      <div class="card">
+        <div id="entries-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      </div>
+    </div>
+
+    <div id="sheet-panel" class="panel">
+      <div class="card">
+        <div class="sheet-nav">
+          <div class="month-nav">
+            <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+            <div class="month-label" id="month-label"></div>
+            <button class="nav-btn" onclick="changeMonth(1)">›</button>
+          </div>
+          <button class="share-btn" onclick="shareSheet()">⎙ Share</button>
+        </div>
+        <div id="sheet-summary-cards"></div>
+        <div id="sheet-content"></div>
+      </div>
+      <div class="card" id="cat-card" style="display:none">
+        <div class="card-title">Expense Breakdown</div>
+        <div id="cat-breakdown"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('add',this)">
+      <span class="nav-icon">＋</span><span class="nav-label">Add</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('entries',this)">
+      <span class="nav-icon">📋</span><span class="nav-label">History</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('sheet',this)">
+      <span class="nav-icon">📊</span><span class="nav-label">Sheet</span>
+    </button>
+  </nav>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbz1mmtd5I-3_uJOlMf-i6c0A3vcKVr_n2mOkduxGYGjCdGfV1WFWhLMi6253n1Jo8D6jQ/exec';
+const POLL = 20000;
+const TOKEN_KEY = 'bt_token';
+const USER_KEY  = 'bt_user';
+
+let entries = [], currentType = 'earn', entryFilter = 'all';
+let sheetYear, sheetMonth, pollTimer;
+let authToken = null;
+
+const now = new Date();
+sheetYear = now.getFullYear(); sheetMonth = now.getMonth();
+
+// ── PIN UI ────────────────────────────────────────────────
+let pinVal = '';
+function pinKey(d) {
+  if (pinVal.length >= 4) return;
+  pinVal += d;
+  updatePinDots();
+  if (pinVal.length === 4) document.getElementById('login-btn').disabled = false;
+}
+function pinDel() {
+  pinVal = pinVal.slice(0,-1);
+  document.getElementById('login-btn').disabled = true;
+  updatePinDots();
+}
+function updatePinDots() {
+  for (let i=0;i<4;i++) {
+    document.getElementById('p'+i).classList.toggle('filled', i < pinVal.length);
+  }
+}
+
+// ── AUTH ──────────────────────────────────────────────────
+async function doLogin() {
+  const username = document.getElementById('login-user').value.trim();
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+  if (!username) { errEl.textContent = 'Enter your username'; return; }
+  if (pinVal.length < 4) { errEl.textContent = 'Enter your 4-digit PIN'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  errEl.textContent = '';
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'login', username, pin: pinVal })
+    });
+    const data = await res.json();
+    if (data.success) {
+      authToken = data.token;
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, data.username);
+      showApp();
+    } else {
+      errEl.textContent = data.error || 'Invalid credentials';
+      pinVal = ''; updatePinDots();
+      btn.textContent = 'Sign In'; btn.disabled = false;
+    }
+  } catch(e) {
+    errEl.textContent = 'Connection error — try again';
+    btn.textContent = 'Sign In'; btn.disabled = false;
+  }
+}
+
+const EARN_CATS = [
+  ['Salary','💼 Salary'],['Freelance','💻 Freelance'],['Investment','📈 Investment'],
+  ['Gift','🎁 Gift'],['Other Income','💰 Other Income'],
+  ['Other Income - Mamma','👩 Other Income - Mamma'],
+  ['Other Income - Dadda','👨 Other Income - Dadda'],
+  ['Other Income - Sodexo','💳 Other Income - Sodexo']
+];
+const EXP_CATS = [
+  ['Food & Dining','🍽️ Food & Dining'],['Transport','🚗 Transport'],
+  ['Shopping','🛍️ Shopping'],['Utilities','💡 Utilities'],
+  ['Healthcare','🏥 Healthcare'],['Entertainment','🎬 Entertainment'],
+  ['Rent','🏠 Rent'],['Education','📚 Education'],['Other Expense','📌 Other Expense']
 ];
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE)
-      .then(cache => cache.addAll(STATIC))
-      .then(() => self.skipWaiting())
-  );
-});
+function setType(t) {
+  currentType = t;
+  const btnEarn = document.getElementById('btn-earn');
+  const btnExp = document.getElementById('btn-expense');
+  if (btnEarn) btnEarn.classList.toggle('active', t==='earn');
+  if (btnExp)  btnExp.classList.toggle('active', t==='expense');
+  const cats = t==='earn' ? EARN_CATS : EXP_CATS;
+  const sel = document.getElementById('category');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Select category --</option>' +
+    cats.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+}
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
-});
+function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-screen').classList.remove('hidden');
+  document.getElementById('date').value = now.toISOString().split('T')[0];
+  setTimeout(() => setType('earn'), 0); // init after DOM is visible
+  renderSheet();
+  loadEntries();
+  startPolling();
+}
 
-self.addEventListener('fetch', e => {
-  const url = e.request.url;
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  authToken = null; entries = [];
+  pinVal = ''; updatePinDots();
+  document.getElementById('login-btn').disabled = true;
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-btn').textContent = 'Sign In';
+  document.getElementById('app-screen').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  if (pollTimer) clearInterval(pollTimer);
+}
 
-  // NEVER cache index.html or API calls — always fetch fresh
-  if (url.includes('index.html') || url.includes('script.google.com') || url === self.location.origin + '/') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
-    return;
+// ── INIT: check saved session ─────────────────────────────
+(function init() {
+  const saved = localStorage.getItem(TOKEN_KEY);
+  if (saved) { authToken = saved; showApp(); }
+})();
+
+// ── HELPERS ───────────────────────────────────────────────
+function setSyncStatus(state, label) {
+  document.getElementById('sync-dot').className = 'sync-dot ' + state;
+  document.getElementById('sync-label').textContent = label;
+}
+function showToast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = (type==='error'?'⚠ ':type==='success'?'✓ ':'↻ ') + msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+function fmt(n) {
+  return '₹' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+const catEmoji = {
+  'Salary':'💼','Freelance':'💻','Investment':'📈','Gift':'🎁','Other Income':'💰',
+  'Other Income - Mamma':'👩','Other Income - Dadda':'👨','Other Income - Sodexo':'💳',
+  'Food & Dining':'🍽️','Transport':'🚗','Shopping':'🛍️','Utilities':'💡',
+  'Healthcare':'🏥','Entertainment':'🎬','Rent':'🏠','Education':'📚','Other Expense':'📌'
+};
+
+// ── DATA ──────────────────────────────────────────────────
+async function loadEntries(silent=false) {
+  if (!authToken) return;
+  if (!silent) setSyncStatus('syncing','syncing');
+  try {
+    const res = await fetch(`${API}?action=getAll&token=${authToken}`, {cache:'no-store'});
+    const data = await res.json();
+    if (data.code === 401) { logout(); return; }
+    entries = (data.entries||[]).map(e=>({...e, amount:parseFloat(e.amount)}))
+                                .sort((a,b)=>new Date(b.date)-new Date(a.date));
+    setSyncStatus('ok','synced');
+    updateSummary(); renderEntries(); renderSheet();
+  } catch(e) {
+    setSyncStatus('err','offline');
+    if (!silent) showToast('Could not connect to cloud','error');
   }
+}
+async function manualSync() {
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('spinning');
+  await loadEntries(false);
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+}
 
-  // Cache-first for static assets (icons, fonts, manifest)
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (!res || res.status !== 200 || res.type === 'opaque') return res;
-        const clone = res.clone();
-        caches.open(CACHE).then(cache => cache.put(e.request, clone));
-        return res;
-      });
-    })
-  );
-});
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => loadEntries(true), POLL);
+}
+
+
+
+async function addEntry() {
+  const amount=parseFloat(document.getElementById('amount').value);
+  const date=document.getElementById('date').value;
+  const category=document.getElementById('category').value;
+  const desc=document.getElementById('desc').value.trim();
+  const notes=document.getElementById('notes').value.trim();
+  if (!amount||amount<=0) return showToast('Enter a valid amount','error');
+  if (!date) return showToast('Select a date','error');
+  if (!category) return showToast('Select a category','error');
+  if (!desc) return showToast('Add a description','error');
+  const btn=document.getElementById('submit-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  setSyncStatus('syncing','saving');
+  const entry={id:Date.now(),type:currentType,amount,date,category,desc,notes};
+  try {
+    await fetch(API,{method:'POST',body:JSON.stringify({action:'add',token:authToken,...entry})});
+    entries.unshift(entry);
+    updateSummary(); renderEntries(); renderSheet();
+    document.getElementById('amount').value='';
+    document.getElementById('desc').value='';
+    document.getElementById('notes').value='';
+    document.getElementById('category').value='';
+    btn.textContent='✓ Saved!'; btn.classList.add('success');
+    setSyncStatus('ok','synced');
+    if(navigator.vibrate) navigator.vibrate(50);
+    showToast('Saved to cloud ☁️','success');
+    setTimeout(()=>{btn.textContent='+ Add Entry';btn.classList.remove('success');btn.disabled=false;},1400);
+  } catch(e) {
+    setSyncStatus('err','failed');
+    showToast('Save failed — check connection','error');
+    btn.textContent='+ Add Entry'; btn.disabled=false;
+  }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+  setSyncStatus('syncing','deleting');
+  try {
+    await fetch(API,{method:'POST',body:JSON.stringify({action:'delete',token:authToken,id})});
+    entries=entries.filter(e=>String(e.id)!==String(id));
+    updateSummary(); renderEntries(); renderSheet();
+    setSyncStatus('ok','synced');
+    showToast('Entry deleted','info');
+  } catch(e) {
+    setSyncStatus('err','failed');
+    showToast('Delete failed','error');
+  }
+}
+
+function updateSummary() {
+  const mn=now.getMonth(),yr=now.getFullYear();
+  const m=entries.filter(e=>{const d=new Date(e.date);return d.getMonth()===mn&&d.getFullYear()===yr;});
+  const earn=m.filter(e=>e.type==='earn').reduce((s,e)=>s+e.amount,0);
+  const exp=m.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  document.getElementById('total-earn').textContent=fmt(earn);
+  document.getElementById('total-exp').textContent=fmt(exp);
+  const bal=earn-exp;
+  const el=document.getElementById('total-bal');
+  el.textContent=(bal<0?'-':'')+fmt(bal);
+  el.style.color=bal>=0?'var(--earn)':'var(--expense)';
+}
+
+function setFilter(f,btn) {
+  entryFilter=f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active'); renderEntries();
+}
+function renderEntries() {
+  const list=document.getElementById('entries-list');
+  let data=entries.slice(0,60);
+  if(entryFilter!=='all') data=data.filter(e=>e.type===entryFilter);
+  if(!data.length){list.innerHTML=`<div class="empty"><div class="empty-icon">${entryFilter==='earn'?'💰':entryFilter==='expense'?'🧾':'📋'}</div>No entries yet.</div>`;return;}
+  list.innerHTML=data.map(e=>`
+    <div class="entry">
+      <div class="entry-icon ${e.type}">${catEmoji[e.category]||(e.type==='earn'?'💰':'💸')}</div>
+      <div class="entry-info">
+        <div class="entry-desc">${e.desc}</div>
+        <div class="entry-meta">${e.category} · ${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
+      </div>
+      <div class="entry-right">
+        <div class="entry-amount ${e.type}">${e.type==='earn'?'+':'-'}${fmt(e.amount)}</div>
+        <button class="del-btn" onclick="deleteEntry('${e.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function monthName(m,y){return new Date(y,m,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});}
+function changeMonth(d){sheetMonth+=d;if(sheetMonth>11){sheetMonth=0;sheetYear++;}if(sheetMonth<0){sheetMonth=11;sheetYear--;}renderSheet();}
+function renderSheet() {
+  document.getElementById('month-label').textContent=monthName(sheetMonth,sheetYear);
+  const filtered=entries.filter(e=>{const d=new Date(e.date);return d.getMonth()===sheetMonth&&d.getFullYear()===sheetYear;}).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const earn=filtered.filter(e=>e.type==='earn').reduce((s,e)=>s+e.amount,0);
+  const exp=filtered.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const bal=earn-exp;
+  document.getElementById('sheet-summary-cards').innerHTML=`<div class="sheet-summary-cards"><div class="sum-card"><div class="sum-label">Earned</div><div class="sum-val" style="color:var(--earn)">${fmt(earn)}</div></div><div class="sum-card"><div class="sum-label">Spent</div><div class="sum-val" style="color:var(--expense)">${fmt(exp)}</div></div><div class="sum-card"><div class="sum-label">Balance</div><div class="sum-val" style="color:${bal>=0?'var(--earn)':'var(--expense)'}">${(bal<0?'-':'')+fmt(bal)}</div></div></div>`;
+  const content=document.getElementById('sheet-content');
+  if(!filtered.length){content.innerHTML='<div class="empty"><div class="empty-icon">📊</div>No transactions this month.</div>';document.getElementById('cat-card').style.display='none';return;}
+  content.innerHTML=filtered.map(e=>`<div class="sheet-entry"><div class="sheet-date">${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div><div class="sheet-info"><div class="sheet-desc">${catEmoji[e.category]||''} ${e.desc}</div><div class="sheet-cat">${e.category}</div></div><div class="sheet-amt ${e.type}">${e.type==='earn'?'+':'-'}${fmt(e.amount)}</div></div>`).join('');
+  document.getElementById('cat-card').style.display='block';
+  const cats={};filtered.filter(e=>e.type==='expense').forEach(e=>{cats[e.category]=(cats[e.category]||0)+e.amount;});
+  const catArr=Object.entries(cats).sort((a,b)=>b[1]-a[1]);const maxCat=catArr[0]?.[1]||1;
+  document.getElementById('cat-breakdown').innerHTML=catArr.length?catArr.map(([cat,amt])=>`<div class="cat-row"><div class="cat-name">${catEmoji[cat]||''} ${cat}</div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${(amt/maxCat)*100}%;background:var(--expense)"></div></div><div class="cat-amt-label">${fmt(amt)}</div></div>`).join(''):'<div class="empty" style="padding:12px">No expenses this month.</div>';
+}
+
+function shareSheet(){
+  const mn=monthName(sheetMonth,sheetYear);
+  const f=entries.filter(e=>{const d=new Date(e.date);return d.getMonth()===sheetMonth&&d.getFullYear()===sheetYear;});
+  const earn=f.filter(e=>e.type==='earn').reduce((s,e)=>s+e.amount,0);
+  const exp=f.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+  const text=`📊 Budget Report — ${mn}\n\n✅ Earnings: ${fmt(earn)}\n❌ Expenses: ${fmt(exp)}\n💰 Balance: ${fmt(earn-exp)}\n\n`+f.map(e=>`${new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} ${e.type==='earn'?'+':'-'}${fmt(e.amount)} ${e.desc}`).join('\n');
+  if(navigator.share) navigator.share({title:`Budget ${mn}`,text}).catch(()=>{});
+  else navigator.clipboard?.writeText(text).then(()=>showToast('Copied!','success'));
+}
+
+function switchTab(tab,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(tab+'-panel').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('content-area').scrollTop=0;
+  if(tab==='entries'||tab==='sheet') loadEntries(true);
+  if(tab==='add') setType(currentType);
+}
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authToken) loadEntries(true);});
+</script>
+</body>
+</html>
