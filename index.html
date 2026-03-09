@@ -244,25 +244,7 @@
         </div>
         <div class="form-group">
           <label>Category</label>
-          <select id="category">
-            <option value="">-- Select category --</option>
-            <optgroup label="Earnings">
-              <option value="Other Income - Mamma">🤱 Other Income - Mamma</option>
-              <option value="Other Income - Dadda">👨‍👦 Other Income - Dadda</option>
-              <option value="Other Income - Sodexo">🍱 Other Income - Sodexo</option>
-            </optgroup>
-            <optgroup label="Expenses">
-              <option value="Food & Dining">🍽️ Food &amp; Dining</option>
-              <option value="Transport">🚗 Transport</option>
-              <option value="Shopping">🛍️ Shopping</option>
-              <option value="Utilities">💡 Utilities</option>
-              <option value="Healthcare">🏥 Healthcare</option>
-              <option value="Entertainment">🎬 Entertainment</option>
-              <option value="Rent">🏠 Rent</option>
-              <option value="Education">📚 Education</option>
-              <option value="Other Expense">📌 Other Expense</option>
-            </optgroup>
-          </select>
+          <select id="category"></select>
         </div>
         <div class="form-group">
           <label>Description</label>
@@ -369,8 +351,8 @@ async function doLogin() {
     const data = await res.json();
     if (data.success) {
       authToken = data.token;
-      sessionStorage.setItem(TOKEN_KEY, data.token);
-      sessionStorage.setItem(USER_KEY, data.username);
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, data.username);
       showApp();
     } else {
       errEl.textContent = data.error || 'Invalid credentials';
@@ -387,14 +369,15 @@ function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-screen').classList.remove('hidden');
   document.getElementById('date').value = now.toISOString().split('T')[0];
+  setType('earn'); // init category dropdown
   renderSheet();
   loadEntries();
   startPolling();
 }
 
 function logout() {
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(USER_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
   authToken = null; entries = [];
   pinVal = ''; updatePinDots();
   document.getElementById('login-btn').disabled = true;
@@ -408,7 +391,7 @@ function logout() {
 
 // ── INIT: check saved session ─────────────────────────────
 (function init() {
-  const saved = sessionStorage.getItem(TOKEN_KEY);
+  const saved = localStorage.getItem(TOKEN_KEY);
   if (saved) { authToken = saved; showApp(); }
 })();
 
@@ -429,7 +412,7 @@ function fmt(n) {
 }
 const catEmoji = {
   'Salary':'💼','Freelance':'💻','Investment':'📈','Gift':'🎁','Other Income':'💰',
-  'Other Expenses - Mamma':'🤱','Other Expenses - Dadda':'👨‍👦','Other Expenses - Sodexo':'🍱',
+  'Other Income - Mamma':'👩','Other Income - Dadda':'👨','Other Income - Sodexo':'💳',
   'Food & Dining':'🍽️','Transport':'🚗','Shopping':'🛍️','Utilities':'💡',
   'Healthcare':'🏥','Entertainment':'🎬','Rent':'🏠','Education':'📚','Other Expense':'📌'
 };
@@ -456,10 +439,28 @@ function startPolling() {
   pollTimer = setInterval(() => loadEntries(true), POLL);
 }
 
+const EARN_CATS = [
+  ['Salary','💼 Salary'],['Freelance','💻 Freelance'],['Investment','📈 Investment'],
+  ['Gift','🎁 Gift'],['Other Income','💰 Other Income'],
+  ['Other Income - Mamma','👩 Other Income - Mamma'],
+  ['Other Income - Dadda','👨 Other Income - Dadda'],
+  ['Other Income - Sodexo','💳 Other Income - Sodexo']
+];
+const EXP_CATS = [
+  ['Food & Dining','🍽️ Food & Dining'],['Transport','🚗 Transport'],
+  ['Shopping','🛍️ Shopping'],['Utilities','💡 Utilities'],
+  ['Healthcare','🏥 Healthcare'],['Entertainment','🎬 Entertainment'],
+  ['Rent','🏠 Rent'],['Education','📚 Education'],['Other Expense','📌 Other Expense']
+];
+
 function setType(t) {
   currentType = t;
   document.getElementById('btn-earn').classList.toggle('active',t==='earn');
   document.getElementById('btn-expense').classList.toggle('active',t==='expense');
+  const cats = t==='earn' ? EARN_CATS : EXP_CATS;
+  const sel = document.getElementById('category');
+  sel.innerHTML = '<option value="">-- Select category --</option>' +
+    cats.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
 }
 
 async function addEntry() {
