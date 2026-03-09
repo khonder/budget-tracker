@@ -472,7 +472,7 @@ async function loadEntries(silent=false) {
     const data = await res.json();
     if (data.code === 401) { logout(); return; }
     entries = (data.entries||[]).map(e=>({...e, amount:parseFloat(e.amount)}))
-                                .sort((a,b)=>new Date(b.date)-new Date(a.date));
+                                .sort((a,b)=>b.id-a.id);
     setSyncStatus('ok','synced');
     updateSummary(); renderEntries(); renderSheet();
   } catch(e) {
