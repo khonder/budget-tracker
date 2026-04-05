@@ -12,7 +12,7 @@
 <title>Daily Budget Tracker</title>
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://*.google.com https://*.googleapis.com https://*.googleusercontent.com; img-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com; img-src 'self' data:;">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -230,7 +230,7 @@
   <div class="summary-strip">
     <div class="stat-pill earn"><div class="stat-label">Earnings</div><div class="stat-val" id="total-earn">₹0</div></div>
     <div class="stat-pill exp"> <div class="stat-label">Expenses</div><div class="stat-val" id="total-exp">₹0</div></div>
-    <div class="stat-pill bal"> <div class="stat-label">Balance</div> <div class="stat-val" id="total-bal">₹0</div></div>
+    <div class="stat-pill bal"> <div class="stat-label">Balance ↑</div> <div class="stat-val" id="total-bal">₹0</div></div>
   </div>
 
   <div class="content-area" id="content-area">
@@ -472,7 +472,7 @@ async function loadEntries(silent=false) {
     const data = await res.json();
     if (data.code === 401) { logout(); return; }
     entries = (data.entries||[]).map(e=>({...e, amount:parseFloat(e.amount)}))
-                                .sort((a,b)=>b.id-a.id);
+                                .sort((a,b)=>new Date(b.date)-new Date(a.date));
     setSyncStatus('ok','synced');
     updateSummary(); renderEntries(); renderSheet();
   } catch(e) {
@@ -544,13 +544,18 @@ async function deleteEntry(id) {
 }
 
 function updateSummary() {
-  const mn=now.getMonth(),yr=now.getFullYear();
+  // Use sheetMonth/sheetYear so summary always matches the viewed month
+  const mn=sheetMonth, yr=sheetYear;
   const m=entries.filter(e=>{const d=new Date(e.date);return d.getMonth()===mn&&d.getFullYear()===yr;});
   const earn=m.filter(e=>e.type==='earn').reduce((s,e)=>s+e.amount,0);
   const exp=m.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
   document.getElementById('total-earn').textContent=fmt(earn);
   document.getElementById('total-exp').textContent=fmt(exp);
-  const bal=earn-exp;
+  // Running balance = all time earnings minus all time expenses up to end of selected month
+  const cutoff=new Date(yr, mn+1, 1); // start of next month
+  const allEarn=entries.filter(e=>e.type==='earn'&&new Date(e.date)<cutoff).reduce((s,e)=>s+e.amount,0);
+  const allExp=entries.filter(e=>e.type==='expense'&&new Date(e.date)<cutoff).reduce((s,e)=>s+e.amount,0);
+  const bal=allEarn-allExp;
   const el=document.getElementById('total-bal');
   el.textContent=(bal<0?'-':'')+fmt(bal);
   el.style.color=bal>=0?'var(--earn)':'var(--expense)';
@@ -581,7 +586,7 @@ function renderEntries() {
 }
 
 function monthName(m,y){return new Date(y,m,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});}
-function changeMonth(d){sheetMonth+=d;if(sheetMonth>11){sheetMonth=0;sheetYear++;}if(sheetMonth<0){sheetMonth=11;sheetYear--;}renderSheet();}
+function changeMonth(d){sheetMonth+=d;if(sheetMonth>11){sheetMonth=0;sheetYear++;}if(sheetMonth<0){sheetMonth=11;sheetYear--;}renderSheet();updateSummary();}
 function renderSheet() {
   document.getElementById('month-label').textContent=monthName(sheetMonth,sheetYear);
   const filtered=entries.filter(e=>{const d=new Date(e.date);return d.getMonth()===sheetMonth&&d.getFullYear()===sheetYear;}).sort((a,b)=>new Date(a.date)-new Date(b.date));
