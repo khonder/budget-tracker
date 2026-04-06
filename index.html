@@ -12,7 +12,7 @@
 <title>Daily Budget Tracker</title>
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com; img-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://*.google.com https://*.googleapis.com https://*.googleusercontent.com; img-src 'self' data:;">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -472,7 +472,7 @@ async function loadEntries(silent=false) {
     const data = await res.json();
     if (data.code === 401) { logout(); return; }
     entries = (data.entries||[]).map(e=>({...e, amount:parseFloat(e.amount)}))
-                                .sort((a,b)=>new Date(b.date)-new Date(a.date));
+                                .sort((a,b)=>b.id-a.id);
     setSyncStatus('ok','synced');
     updateSummary(); renderEntries(); renderSheet();
   } catch(e) {
